@@ -10,6 +10,7 @@ from twilio.rest import Client
 import pandas as pd
 import numpy as np
 from qpython import qconnection
+from colorama import Fore, init
 
 # Bugs
 # If realtime crashes this is fucked for the day
@@ -53,22 +54,32 @@ class Vol(object):
         self.kdb_data = Vol.init_rvol(self)
 
     @classmethod
-    def kdb(cls, query):
+    def kdb(cls, query=None):
         """connect to kdb"""
 
-        with qconnection.QConnection('kdb.genevatrading.com', 8000,
-                                     pandas=True) as kdb:
+        kdb = qconnection.QConnection('kdb.genevatrading.com', 8000,
+                                      pandas=True)
+        kdb.open()
 
-            return kdb(query)
+        if query is None:
+
+            return kdb
+
+        return kdb(query)
 
     @classmethod
-    def rdb(cls, query):
+    def rdb(cls, query=None):
         """Connect to rdb"""
 
-        with qconnection.QConnection('kdb.genevatrading.com', 9218,
-                                     pandas=True) as rdb:
+        rdb = qconnection.QConnection('kdb.genevatrading.com', 9218,
+                                      pandas=True)
+        rdb.open()
 
-            return rdb(query)
+        if query is None:
+
+            return rdb
+
+        return rdb(query)
 
     @classmethod
     def rvol_time(cls):
@@ -289,7 +300,6 @@ class Vol(object):
 
 class Display(object):
     '''terminal print method'''
-
     def __init__(self):
 
         self.sectors = {"Metals": ["GC", "SI", "HG", "PL", "PA"],
@@ -337,6 +347,9 @@ class Display(object):
                 # Fill whitespace to align columns
                 t1 += ' ' * (COLUMN_WIDTH - len(t1))
                 t2 += ' ' * (COLUMN_WIDTH - len(t2))
+                
+                if i < len(self.sectors[key]):
+                    t2 = Display.add_color(symbol, t2)
 
                 output_buffer[i * 2] += t1
                 output_buffer[(i * 2) + 1] += t2
@@ -371,15 +384,15 @@ class Display(object):
 
         # Top X Session - format each line and add to the output buffer
         for i in range(0, num_rows):
-
+    
             symbol = rvol_sort[i]
             rvol_intensity = min(5, int(rvol_20d[symbol] // INTENSITY_FACTOR))
-
+    
             temp = (rvol_sort[i] + ' ' * ((COLUMN_WIDTH // 2) - len(
                     symbol) - rvol_intensity) + '*' * rvol_intensity + str(
                     rvol_20d[symbol]))
             temp += ' ' * (COLUMN_WIDTH - len(temp))
-
+    
             output_buffer[i] += temp
 
         # clear screen and print everything to screen
@@ -390,6 +403,14 @@ class Display(object):
         for line in output_buffer:
             print(line)
 
+    # returns a colorized string based on the state
+    def add_color(state, text):
+        if(state == 1):
+            return (text[:1] + Fore.GREEN +"\u2191" + Fore.WHITE + text[2:])
+        elif(state == -1):
+            return (text[:1] + Fore.RED + "\u2193" + Fore.WHITE + text[2:])
+        else:
+            return (text[:1] +'-' x+ text[2:])
 
 class Market(object):
     '''Generic base/sym data'''
@@ -509,6 +530,7 @@ class Market(object):
         yday_ohlc['yc'] = _['close'].item()
 
         return yday_ohlc
+
 
     @classmethod
     def upd_price(cls, sym):
@@ -765,6 +787,8 @@ if __name__ == '__main__':
 
     def main():
         '''Returns a dict of base : rvol_now pairs'''
+        # initialize colors for colorama
+        init()
 
         rvol_now = ex.get_rvol_now()
         rvol_20d = ex.get_rvol_20d()
